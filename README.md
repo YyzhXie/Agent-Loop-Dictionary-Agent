@@ -2,26 +2,17 @@
 
 English | [简体中文](README_zh.md)
 
-A minimal, single-file dictionary agent built from scratch with Python and the
-[OpenAI Python SDK](https://github.com/openai/openai-python). It demonstrates a
-real tool-calling Agent Loop: the model receives one English word, calls the
-`lookup_word` tool, reads the tool result, and writes a fixed-format Chinese
-dictionary entry.
+A minimal, single-file dictionary agent built from scratch with Python and the [OpenAI Python SDK](https://github.com/openai/openai-python). It demonstrates a real tool-calling Agent Loop: the model receives one English word, calls the `lookup_word` tool, reads the tool result, and writes a fixed-format Chinese dictionary entry.
 
 ## Features
 
 - **One source file** — all application code lives in `agent.py`.
-- **Real Agent Loop** — up to 10 model turns, with tool results appended back
-  into the conversation until the model stops requesting tools.
-- **One tool** — `lookup_word(word)` queries Youdao Dictionary and returns a
-  normalized JSON string.
+- **Real Agent Loop** — up to 10 model turns, with tool results appended back into the conversation until the model stops requesting tools.
+- **One tool** — `lookup_word(word)` queries Youdao Dictionary and returns a normalized JSON string.
 - **Strict tool schema** — the function definition uses `strict: True`.
-- **Deterministic output contract** — the final answer follows a fixed Chinese
-  layout, and missing sections are written as `无` instead of being invented.
-- **No hard-coded secret** — the API key is resolved at runtime and never
-  printed.
-- **Graceful failures** — network, HTTP, JSON, and model errors are reported
-  without crashing the formatting contract.
+- **Deterministic output contract** — the final answer follows a fixed Chinese layout, and missing sections are written as `无` instead of being invented.
+- **No hard-coded secret** — the API key is resolved at runtime and never printed.
+- **Graceful failures** — network, HTTP, JSON, and model errors are reported without crashing the formatting contract.
 
 ## Requirements
 
@@ -48,22 +39,14 @@ On macOS/Linux, activate with `source .venv/bin/activate`.
 The script never stores an API key in the repository. It resolves the key in
 this order:
 
-1. `refs.DEEPSEEK_API_KEY` in the DeepSeek Harness credentials file
-   (`%USERPROFILE%\.dsh\.credentials.yaml`, or `$DSH_HOME/.credentials.yaml`).
-   This is the custom DeepSeek API key added in Harness.
+1. `refs.DEEPSEEK_API_KEY` in the DeepSeek Harness credentials file (`%USERPROFILE%\.dsh\.credentials.yaml`, or `$DSH_HOME/.credentials.yaml`). This is the custom DeepSeek API key added in Harness.
 2. `DEEPSEEK_API_KEY` environment variable.
 3. `DEEPSEEK_ACCOUNT_API_KEY` environment variable (account API fallback).
-4. The DeepSeek account token in the Harness credentials file
-   (`deepseek-account-platform/default` → `payload.token`) as a last-resort
-   fallback.
+4. The DeepSeek account token in the Harness credentials file (`deepseek-account-platform/default` → `payload.token`) as a last-resort fallback.
 
-The custom Harness key is therefore preferred whenever it can be read. If the
-Harness credentials are unavailable, the environment and account fallbacks are
-tried next. If no key can be found, the script prints setup instructions and
-exits.
+The custom Harness key is therefore preferred whenever it can be read. If the Harness credentials are unavailable, the environment and account fallbacks are tried next. If no key can be found, the script prints setup instructions and exits.
 
-> The key is only passed to the OpenAI client. It is not logged, written to
-> disk, or included in tool output.
+> The key is only passed to the OpenAI client. It is not logged, written to disk, or included in tool output.
 
 ## Run
 
@@ -93,12 +76,10 @@ Then enter one English word:
 
 Rules:
 
-- If a whole section is absent from the API response, print `无` for that
-  section.
+- If a whole section is absent from the API response, print `无` for that section.
 - If the phonetic field is absent, omit the `音标` line entirely.
 - The model must not invent meanings, examples, phonetics, or inflections.
-- If the tool returns `{"error": ...}`, the model reports the failure and its
-  reason instead of fabricating a dictionary entry.
+- If the tool returns `{"error": ...}`, the model reports the failure and its reason instead of fabricating a dictionary entry.
 
 ## How the Agent Loop works
 
@@ -125,9 +106,7 @@ Rules:
 }
 ```
 
-Every field is always present. Missing data is represented by an empty string
-or an empty list, never by an exception. On HTTP or JSON failure the tool
-returns:
+Every field is always present. Missing data is represented by an empty string or an empty list, never by an exception. On HTTP or JSON failure the tool returns:
 
 ```json
 {"error": "查询失败: <reason>"}
@@ -142,32 +121,19 @@ Data is extracted with this priority:
 | Examples | `auth_sents_part.sent` | `blng_sents_part.sent` or `sentence-pair` |
 | Derivatives | `simple.wfs` | `ec.word[0].wfs` |
 
-The live Youdao response often returns authoritative sentences with only an
-English `foreign` field and no Chinese `zh` field. The tool skips such incomplete
-pairs and falls back to the bilingual `blng_sents_part` entries
-(`sentence` / `sentence-translation`), so it never invents a translation. It also
-accepts the flat `{"w": ..., "name": ...}` derivative form from the task spec and
-the live nested `{"wf": {"name": ..., "value": ...}}` form.
+The live Youdao response often returns authoritative sentences with only an English `foreign` field and no Chinese `zh` field. The tool skips such incomplete pairs and falls back to the bilingual `blng_sents_part` entries (`sentence` / `sentence-translation`), so it never invents a translation. It also accepts the flat `{"w": ..., "name": ...}` derivative form from the task spec and the live nested `{"wf": {"name": ..., "value": ...}}` form.
 
-The Youdao response may start with a JSONP-like prefix such as `@(#)@`; the
-tool strips everything before the first `{` and after the last `}` before
-calling `json.loads`.
+The Youdao response may start with a JSONP-like prefix such as `@(#)@`; the tool strips everything before the first `{` and after the last `}` before calling `json.loads`.
 
 ## Model
 
-The model is `deepseek-flash`, with `base_url` set to
-`https://api.deepseek.com`.
+The model is `deepseek-flash`, with `base_url` set to `https://api.deepseek.com`.
 
-The original request specified `deepseek-v4.1-flash`. During integration the
-available custom key rejected that name with HTTP 400 and stated that only
-`deepseek-flash` and `deepseek-v4-pro` were supported, so `deepseek-flash` was
-selected after confirmation. If your account later exposes
-`deepseek-v4.1-flash`, update the `MODEL` constant in `agent.py`.
+The original request specified `deepseek-v4.1-flash`. During integration the available custom key rejected that name with HTTP 400 and stated that only `deepseek-flash` and `deepseek-v4-pro` were supported, so `deepseek-flash` was selected after confirmation. If your account later exposes `deepseek-v4.1-flash`, update the `MODEL` constant in `agent.py`.
 
 ## Verification
 
-Tested on 2026-11-22 with the local Python 3.14.10, `openai` 3.57.0, the
-Harness custom key, and `deepseek-flash`:
+Tested on 2026-11-22 with the local Python 3.14.10, `openai` 3.57.0, the Harness custom key, and `deepseek-flash`:
 
 | Check | Result |
 | --- | --- |
@@ -193,7 +159,5 @@ No API key was printed or committed during verification.
 
 ## Notes
 
-- Youdao's `jsonapi` endpoint is an unofficial public endpoint and may change
-  without notice.
-- This is an educational Agent Loop example, not a production dictionary
-  service.
+- Youdao's `jsonapi` endpoint is an unofficial public endpoint and may change without notice.
+- This is an educational Agent Loop example, not a production dictionary service.

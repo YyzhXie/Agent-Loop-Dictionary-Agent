@@ -2,23 +2,17 @@
 
 [English](README.md) | 简体中文
 
-这是一个从零搭建、仅含单个源文件的词典 Agent，使用 Python 和
-[OpenAI Python SDK](https://github.com/openai/openai-python)。它演示了完整的
-工具调用 Agent Loop：模型收到一个英语单词后调用 `lookup_word` 工具，读取工具
-返回结果，再按固定格式输出中文词典内容。
+这是一个从零搭建、仅含单个源文件的词典 Agent，使用 Python 和 [OpenAI Python SDK](https://github.com/openai/openai-python)。它演示了完整的工具调用 Agent Loop：模型收到一个英语单词后调用 `lookup_word` 工具，读取工具返回结果，再按固定格式输出中文词典内容。
 
 ## 功能特点
 
 - **单文件实现**——所有应用代码都在 `agent.py` 中。
-- **真正的 Agent Loop**——最多 10 轮；工具结果会追加回对话，直到模型不再请求
-  调用工具。
+- **真正的 Agent Loop**——最多 10 轮；工具结果会追加回对话，直到模型不再请求调用工具。
 - **只定义一个工具**——`lookup_word(word)` 查询有道词典并返回规范化 JSON 字符串。
 - **严格工具定义**——function 定义中启用 `strict: True`。
-- **固定输出格式**——最终回答严格按指定中文版式输出；接口未返回的板块写“无”，
-  不编造内容。
+- **固定输出格式**——最终回答严格按指定中文版式输出；接口未返回的板块写“无”，不编造内容。
 - **不硬编码密钥**——API Key 在运行时读取，任何情况下都不打印。
-- **完善的失败处理**——网络、HTTP、JSON 和模型错误都会被报告，且不会破坏格式
-  约束。
+- **完善的失败处理**——网络、HTTP、JSON 和模型错误都会被报告，且不会破坏格式约束。
 
 ## 环境要求
 
@@ -52,8 +46,7 @@ macOS/Linux 使用 `source .venv/bin/activate` 激活虚拟环境。
 4. Harness 凭据文件中的 DeepSeek 账户令牌
    （`deepseek-account-platform/default` → `payload.token`），作为最后的回退。
 
-因此，只要 Harness 凭据可读，脚本就会优先使用其中的自定义 Key；读取不到时再
-尝试环境变量和账户回退。若找不到任何 Key，脚本会打印配置说明并退出。
+因此，只要 Harness 凭据可读，脚本就会优先使用其中的自定义 Key；读取不到时再尝试环境变量和账户回退。若找不到任何 Key，脚本会打印配置说明并退出。
 
 > Key 只传给 OpenAI 客户端，不会被记录到日志、写入磁盘或放入工具返回值。
 
@@ -114,8 +107,7 @@ python agent.py
 }
 ```
 
-所有字段始终存在。缺失数据用空字符串或空列表表示，不抛出中断异常。HTTP 或
-JSON 解析失败时返回：
+所有字段始终存在。缺失数据用空字符串或空列表表示，不抛出中断异常。HTTP 或 JSON 解析失败时返回：
 
 ```json
 {"error": "查询失败: <原因>"}
@@ -130,28 +122,19 @@ JSON 解析失败时返回：
 | 例句 | `auth_sents_part.sent` | `blng_sents_part.sent` 或 `sentence-pair` |
 | 派生词 | `simple.wfs` | `ec.word[0].wfs` |
 
-有道实际返回的权威例句常常只有英文 `foreign` 字段，没有中文 `zh` 字段。工具会
-跳过这类不完整例句，回退到 `blng_sents_part` 的双语内容
-（`sentence` / `sentence-translation`），绝不自行补写翻译。派生词同时兼容需求
-中的扁平结构 `{"w": ..., "name": ...}` 和线上嵌套结构
-`{"wf": {"name": ..., "value": ...}}`。
+有道实际返回的权威例句常常只有英文 `foreign` 字段，没有中文 `zh` 字段。工具会跳过这类不完整例句，回退到 `blng_sents_part` 的双语内容（`sentence` / `sentence-translation`），绝不自行补写翻译。派生词同时兼容需求中的扁平结构 `{"w": ..., "name": ...}` 和线上嵌套结构`{"wf": {"name": ..., "value": ...}}`。
 
-有道返回文本可能以 `@(#)@` 等 JSONP 前缀开头；工具会先截取第一个 `{` 到最后一个
-`}` 之间的内容，再调用 `json.loads`。
+有道返回文本可能以 `@(#)@` 等 JSONP 前缀开头；工具会先截取第一个 `{` 到最后一个`}` 之间的内容，再调用 `json.loads`。
 
 ## 模型
 
 模型为 `deepseek-flash`，`base_url` 为 `https://api.deepseek.com`。
 
-原始需求指定 `deepseek-v4.1-flash`。接入测试时，当前可用的自定义 Key 对该模型名
-返回 HTTP 400，并明确说明只支持 `deepseek-flash` 和 `deepseek-v4-pro`；经确认后
-改用 `deepseek-flash`。如果之后账户开放 `deepseek-v4.1-flash`，修改 `agent.py`
-中的 `MODEL` 常量即可。
+原始需求指定 `deepseek-v4.1-flash`。接入测试时，当前可用的自定义 Key 对该模型名返回 HTTP 400，并明确说明只支持`deepseek-flash` 和 `deepseek-v4-pro`；经确认后改用 `deepseek-flash`。如果之后账户开放 `deepseek-v4.1-flash`，修改`agent.py`中的 `MODEL` 常量即可。
 
 ## 验证结果
 
-2026-11-22 使用本机 Python 3.14.10、`openai` 3.57.0、Harness 自定义 Key 和
-`deepseek-flash` 完成实测：
+2026-11-22 使用本机 Python 3.14.10、`openai` 3.57.0、Harness 自定义 Key 和`deepseek-flash` 完成实测：
 
 | 检查项 | 结果 |
 | --- | --- |
