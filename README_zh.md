@@ -2,11 +2,11 @@
 
 [English](README.md) | 简体中文
 
-这是一个从零搭建、仅含单个源文件的词典 Agent，使用 Python 和 [OpenAI Python SDK](https://github.com/openai/openai-python)。它演示了完整的工具调用 Agent Loop：模型收到一个英语单词后调用 `lookup_word` 工具，读取工具返回结果，再按固定格式输出中文词典内容。
+这是一个从零搭建、模块化的词典 Agent，使用 Python 和 [OpenAI Python SDK](https://github.com/openai/openai-python)。它演示了完整的工具调用 Agent Loop：模型收到一个英语单词后调用 `lookup_word` 工具，读取工具返回结果，再按固定格式输出中文词典内容。
 
 ## 功能特点
 
-- **单文件实现**——所有应用代码都在 `agent.py` 中。
+- **模块化包结构**——`agent.py` 仅作为入口；配置、凭据、有道集成、Agent Loop 和 CLI 分别拆分到独立模块。
 - **真正的 Agent Loop**——最多 10 轮；工具结果会追加回对话，直到模型不再请求调用工具。
 - **只定义一个工具**——`lookup_word(word)` 查询有道词典并返回规范化 JSON 字符串。
 - **严格工具定义**——function 定义中启用 `strict: True`。
@@ -53,7 +53,11 @@ macOS/Linux 使用 `source .venv/bin/activate` 激活虚拟环境。
 ## 运行
 
 ```powershell
+# 标准入口
 python agent.py
+
+# 等价的包入口
+python -m dictionary_agent
 ```
 
 然后输入一个英语单词：
@@ -130,7 +134,7 @@ python agent.py
 
 模型为 `deepseek-flash`，`base_url` 为 `https://api.deepseek.com`。
 
-原始需求指定 `deepseek-v4.1-flash`。接入测试时，当前可用的自定义 Key 对该模型名返回 HTTP 400，并明确说明只支持`deepseek-flash` 和 `deepseek-v4-pro`；经确认后改用 `deepseek-flash`。如果之后账户开放 `deepseek-v4.1-flash`，修改`agent.py`中的 `MODEL` 常量即可。
+原始需求指定 `deepseek-v4.1-flash`。接入测试时，当前可用的自定义 Key 对该模型名返回 HTTP 400，并明确说明只支持`deepseek-flash` 和 `deepseek-v4-pro`；经确认后改用 `deepseek-flash`。如果之后账户开放 `deepseek-v4.1-flash`，修改`dictionary_agent/config.py`中的 `MODEL` 常量即可。
 
 ## 验证结果
 
@@ -139,11 +143,13 @@ python agent.py
 | 检查项 | 结果 |
 | --- | --- |
 | `lookup_word("apple")` | 有道实时数据：音标、1 条释义、3 条双语例句、`复数：apples` |
-| `python agent.py` 输入 `apple` | 按固定格式完整输出 |
+| `python agent.py` 输入 `apple` | 通过薄入口按固定格式完整输出 |
+| `python -m dictionary_agent` | 包入口可正常启动并输出预期词典格式 |
+| 模块导入 | 全部包模块在 PyCharm `.venv` 下均可编译和导入 |
 | 未知单词 | 省略音标行；`中文含义`、`例句`、`派生词` 均显示 `无` |
 | JSONP 与回退结构 | 剥离 `@(#)@` 前缀；扁平/嵌套派生词和 `web_trans` 回退均可解析 |
 | 模拟工具错误 | 输出 `查询失败: 模拟网络故障`，没有重复前缀 |
-| 十轮循环桩 | 恰好 10 次模型调用后输出 `达到最大轮次，任务未完成` |
+| 十轮循环桩 | 恰好 10 次模型调用后返回 `达到最大轮次，任务未完成` |
 | HTTP 错误路径 | `{"error": "查询失败: HTTP 404"}` |
 | 非 JSON 路径 | `{"error": "查询失败: JSON 解析失败: ..."}` |
 
@@ -154,9 +160,27 @@ python agent.py
 ```text
 .
 ├── agent.py
+├── dictionary_agent/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── cli.py
+│   ├── config.py
+│   ├── credentials.py
+│   ├── loop.py
+│   └── youdao.py
 ├── README.md
 └── README_zh.md
 ```
+
+| 模块 | 职责 |
+| --- | --- |
+| `agent.py` | 可执行的薄入口，转交给 CLI。 |
+| `dictionary_agent/__main__.py` | 支持 `python -m dictionary_agent`。 |
+| `dictionary_agent/cli.py` | 读取一个单词、创建客户端、打印回答并处理用户可见错误。 |
+| `dictionary_agent/config.py` | 模型、接口地址、轮次上限、系统提示和严格工具定义。 |
+| `dictionary_agent/credentials.py` | 读取 Harness 凭据并按顺序解析 API Key。 |
+| `dictionary_agent/loop.py` | 执行 Agent Loop、分派工具调用并返回最终文本。 |
+| `dictionary_agent/youdao.py` | 请求有道、剥离 JSONP 并规范化词典数据。 |
 
 ## 说明
 

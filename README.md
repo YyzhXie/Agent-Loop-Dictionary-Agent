@@ -2,11 +2,11 @@
 
 English | [简体中文](README_zh.md)
 
-A minimal, single-file dictionary agent built from scratch with Python and the [OpenAI Python SDK](https://github.com/openai/openai-python). It demonstrates a real tool-calling Agent Loop: the model receives one English word, calls the `lookup_word` tool, reads the tool result, and writes a fixed-format Chinese dictionary entry.
+A minimal, modular dictionary agent built from scratch with Python and the [OpenAI Python SDK](https://github.com/openai/openai-python). It demonstrates a real tool-calling Agent Loop: the model receives one English word, calls the `lookup_word` tool, reads the tool result, and writes a fixed-format Chinese dictionary entry.
 
 ## Features
 
-- **One source file** — all application code lives in `agent.py`.
+- **Modular package** — `agent.py` is a thin entry point; configuration, credentials, Youdao integration, the Agent Loop, and the CLI live in separate modules.
 - **Real Agent Loop** — up to 10 model turns, with tool results appended back into the conversation until the model stops requesting tools.
 - **One tool** — `lookup_word(word)` queries Youdao Dictionary and returns a normalized JSON string.
 - **Strict tool schema** — the function definition uses `strict: True`.
@@ -51,7 +51,11 @@ The custom Harness key is therefore preferred whenever it can be read. If the Ha
 ## Run
 
 ```powershell
+# Standard entry point
 python agent.py
+
+# Equivalent package entry point
+python -m dictionary_agent
 ```
 
 Then enter one English word:
@@ -129,7 +133,7 @@ The Youdao response may start with a JSONP-like prefix such as `@(#)@`; the tool
 
 The model is `deepseek-flash`, with `base_url` set to `https://api.deepseek.com`.
 
-The original request specified `deepseek-v4.1-flash`. During integration the available custom key rejected that name with HTTP 400 and stated that only `deepseek-flash` and `deepseek-v4-pro` were supported, so `deepseek-flash` was selected after confirmation. If your account later exposes `deepseek-v4.1-flash`, update the `MODEL` constant in `agent.py`.
+The original request specified `deepseek-v4.1-flash`. During integration the available custom key rejected that name with HTTP 400 and stated that only `deepseek-flash` and `deepseek-v4-pro` were supported, so `deepseek-flash` was selected after confirmation. If your account later exposes `deepseek-v4.1-flash`, update the `MODEL` constant in `dictionary_agent/config.py`.
 
 ## Verification
 
@@ -138,11 +142,13 @@ Tested on 2026-11-22 with the local Python 3.14.10, `openai` 3.57.0, the Harness
 | Check | Result |
 | --- | --- |
 | `lookup_word("apple")` | Live Youdao data: phonetic, one meaning, three bilingual examples, `复数：apples` |
-| `python agent.py` with `apple` | Exact fixed-format dictionary output |
+| `python agent.py` with `apple` | Exact fixed-format dictionary output through the thin entry point |
+| `python -m dictionary_agent` | Package entry point starts and prints the expected dictionary format |
+| Modular imports | All package modules compile and import under the PyCharm `.venv` |
 | Unknown word | Phonetic line omitted; `中文含义`, `例句`, and `派生词` each show `无` |
 | JSONP and fallback schemas | `@(#)@` prefix stripped; flat/nested derivatives and `web_trans` fallback parsed |
 | Simulated tool error | `查询失败: 模拟网络故障` with no duplicated prefix |
-| Ten-turn loop stub | Printed `达到最大轮次，任务未完成` after exactly 10 model calls |
+| Ten-turn loop stub | Returned `达到最大轮次，任务未完成` after exactly 10 model calls |
 | HTTP error path | `{"error": "查询失败: HTTP 404"}` |
 | Non-JSON path | `{"error": "查询失败: JSON 解析失败: ..."}` |
 
@@ -153,9 +159,27 @@ No API key was printed or committed during verification.
 ```text
 .
 ├── agent.py
+├── dictionary_agent/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── cli.py
+│   ├── config.py
+│   ├── credentials.py
+│   ├── loop.py
+│   └── youdao.py
 ├── README.md
 └── README_zh.md
 ```
+
+| Module | Responsibility |
+| --- | --- |
+| `agent.py` | Thin executable entry point; delegates to the CLI. |
+| `dictionary_agent/__main__.py` | Enables `python -m dictionary_agent`. |
+| `dictionary_agent/cli.py` | Reads one word, builds the client, prints the answer, and handles user-facing errors. |
+| `dictionary_agent/config.py` | Model, endpoint, turn limit, system prompt, and strict tool schema. |
+| `dictionary_agent/credentials.py` | Reads Harness credentials and resolves the API key fallback order. |
+| `dictionary_agent/loop.py` | Runs the Agent Loop, dispatches tool calls, and returns the final text. |
+| `dictionary_agent/youdao.py` | Calls Youdao, strips JSONP, and normalizes dictionary data. |
 
 ## Notes
 
