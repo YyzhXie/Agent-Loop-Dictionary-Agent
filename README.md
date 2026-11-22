@@ -48,18 +48,19 @@ On macOS/Linux, activate with `source .venv/bin/activate`.
 The script never stores an API key in the repository. It resolves the key in
 this order:
 
-1. `DEEPSEEK_API_KEY` environment variable.
-2. `refs.DEEPSEEK_API_KEY` in the DeepSeek Harness credentials file
+1. `refs.DEEPSEEK_API_KEY` in the DeepSeek Harness credentials file
    (`%USERPROFILE%\.dsh\.credentials.yaml`, or `$DSH_HOME/.credentials.yaml`).
    This is the custom DeepSeek API key added in Harness.
+2. `DEEPSEEK_API_KEY` environment variable.
 3. `DEEPSEEK_ACCOUNT_API_KEY` environment variable (account API fallback).
 4. The DeepSeek account token in the Harness credentials file
    (`deepseek-account-platform/default` → `payload.token`) as a last-resort
    fallback.
 
-The custom Harness key is therefore used automatically when no environment
-variable overrides it. If no key can be found, the script prints setup
-instructions and exits.
+The custom Harness key is therefore preferred whenever it can be read. If the
+Harness credentials are unavailable, the environment and account fallbacks are
+tried next. If no key can be found, the script prints setup instructions and
+exits.
 
 > The key is only passed to the OpenAI client. It is not logged, written to
 > disk, or included in tool output.
@@ -138,8 +139,15 @@ Data is extracted with this priority:
 | --- | --- | --- |
 | Phonetic | `ec.word[0].usphone` / `ukphone` | `simple.word[0]` |
 | Meanings | `ec.word[*].trs[*].tr[0].l.i[0]` | `simple`, then `web_trans` |
-| Examples | `auth_sents_part.sent` | `blng_sents_part.sent` |
+| Examples | `auth_sents_part.sent` | `blng_sents_part.sent` or `sentence-pair` |
 | Derivatives | `simple.wfs` | `ec.word[0].wfs` |
+
+The live Youdao response often returns authoritative sentences with only an
+English `foreign` field and no Chinese `zh` field. The tool skips such incomplete
+pairs and falls back to the bilingual `blng_sents_part` entries
+(`sentence` / `sentence-translation`), so it never invents a translation. It also
+accepts the flat `{"w": ..., "name": ...}` derivative form from the task spec and
+the live nested `{"wf": {"name": ..., "value": ...}}` form.
 
 The Youdao response may start with a JSONP-like prefix such as `@(#)@`; the
 tool strips everything before the first `{` and after the last `}` before
@@ -155,6 +163,24 @@ available custom key rejected that name with HTTP 400 and stated that only
 `deepseek-flash` and `deepseek-v4-pro` were supported, so `deepseek-flash` was
 selected after confirmation. If your account later exposes
 `deepseek-v4.1-flash`, update the `MODEL` constant in `agent.py`.
+
+## Verification
+
+Tested on 2026-11-22 with the local Python 3.14.10, `openai` 3.57.0, the
+Harness custom key, and `deepseek-flash`:
+
+| Check | Result |
+| --- | --- |
+| `lookup_word("apple")` | Live Youdao data: phonetic, one meaning, three bilingual examples, `复数：apples` |
+| `python agent.py` with `apple` | Exact fixed-format dictionary output |
+| Unknown word | Phonetic line omitted; `中文含义`, `例句`, and `派生词` each show `无` |
+| JSONP and fallback schemas | `@(#)@` prefix stripped; flat/nested derivatives and `web_trans` fallback parsed |
+| Simulated tool error | `查询失败: 模拟网络故障` with no duplicated prefix |
+| Ten-turn loop stub | Printed `达到最大轮次，任务未完成` after exactly 10 model calls |
+| HTTP error path | `{"error": "查询失败: HTTP 404"}` |
+| Non-JSON path | `{"error": "查询失败: JSON 解析失败: ..."}` |
+
+No API key was printed or committed during verification.
 
 ## Project structure
 

@@ -43,17 +43,17 @@ macOS/Linux 使用 `source .venv/bin/activate` 激活虚拟环境。
 
 脚本不会把 API Key 写入仓库，按以下顺序解析：
 
-1. 环境变量 `DEEPSEEK_API_KEY`。
-2. DeepSeek Harness 凭据文件中的 `refs.DEEPSEEK_API_KEY`
+1. DeepSeek Harness 凭据文件中的 `refs.DEEPSEEK_API_KEY`
    （`%USERPROFILE%\.dsh\.credentials.yaml`，或
    `$DSH_HOME/.credentials.yaml`）。也就是本 Harness 中添加的自定义 DeepSeek
    API Key。
+2. 环境变量 `DEEPSEEK_API_KEY`。
 3. 环境变量 `DEEPSEEK_ACCOUNT_API_KEY`（账户 API 回退）。
 4. Harness 凭据文件中的 DeepSeek 账户令牌
    （`deepseek-account-platform/default` → `payload.token`），作为最后的回退。
 
-因此，在没有环境变量覆盖时，脚本会自动使用 Harness 中的自定义 Key。若找不到
-任何 Key，脚本会打印配置说明并退出。
+因此，只要 Harness 凭据可读，脚本就会优先使用其中的自定义 Key；读取不到时再
+尝试环境变量和账户回退。若找不到任何 Key，脚本会打印配置说明并退出。
 
 > Key 只传给 OpenAI 客户端，不会被记录到日志、写入磁盘或放入工具返回值。
 
@@ -127,8 +127,14 @@ JSON 解析失败时返回：
 | --- | --- | --- |
 | 音标 | `ec.word[0].usphone` / `ukphone` | `simple.word[0]` |
 | 中文含义 | `ec.word[*].trs[*].tr[0].l.i[0]` | `simple`，再尝试 `web_trans` |
-| 例句 | `auth_sents_part.sent` | `blng_sents_part.sent` |
+| 例句 | `auth_sents_part.sent` | `blng_sents_part.sent` 或 `sentence-pair` |
 | 派生词 | `simple.wfs` | `ec.word[0].wfs` |
+
+有道实际返回的权威例句常常只有英文 `foreign` 字段，没有中文 `zh` 字段。工具会
+跳过这类不完整例句，回退到 `blng_sents_part` 的双语内容
+（`sentence` / `sentence-translation`），绝不自行补写翻译。派生词同时兼容需求
+中的扁平结构 `{"w": ..., "name": ...}` 和线上嵌套结构
+`{"wf": {"name": ..., "value": ...}}`。
 
 有道返回文本可能以 `@(#)@` 等 JSONP 前缀开头；工具会先截取第一个 `{` 到最后一个
 `}` 之间的内容，再调用 `json.loads`。
@@ -141,6 +147,24 @@ JSON 解析失败时返回：
 返回 HTTP 400，并明确说明只支持 `deepseek-flash` 和 `deepseek-v4-pro`；经确认后
 改用 `deepseek-flash`。如果之后账户开放 `deepseek-v4.1-flash`，修改 `agent.py`
 中的 `MODEL` 常量即可。
+
+## 验证结果
+
+2026-11-22 使用本机 Python 3.14.10、`openai` 3.57.0、Harness 自定义 Key 和
+`deepseek-flash` 完成实测：
+
+| 检查项 | 结果 |
+| --- | --- |
+| `lookup_word("apple")` | 有道实时数据：音标、1 条释义、3 条双语例句、`复数：apples` |
+| `python agent.py` 输入 `apple` | 按固定格式完整输出 |
+| 未知单词 | 省略音标行；`中文含义`、`例句`、`派生词` 均显示 `无` |
+| JSONP 与回退结构 | 剥离 `@(#)@` 前缀；扁平/嵌套派生词和 `web_trans` 回退均可解析 |
+| 模拟工具错误 | 输出 `查询失败: 模拟网络故障`，没有重复前缀 |
+| 十轮循环桩 | 恰好 10 次模型调用后输出 `达到最大轮次，任务未完成` |
+| HTTP 错误路径 | `{"error": "查询失败: HTTP 404"}` |
+| 非 JSON 路径 | `{"error": "查询失败: JSON 解析失败: ..."}` |
+
+验证过程中没有打印或提交任何 API Key。
 
 ## 项目结构
 

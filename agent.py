@@ -49,9 +49,9 @@ SYSTEM_PROMPT = """你是一个英语词典助手。用户给出一个英语单�
 
 输出规则：
 1. 音标行只在工具返回的 phonetic 非空时输出，否则整行省略。
-2. 中文含义、例句、派生词中某一类为空时，在对应标题下写“无”。
+2. 中文含义、例句、派生词中某一类为空时，在对应标题后直接写“无”（例如“中文含义：无”），不要加项目符号。
 3. 不得编造释义、音标、例句、翻译或词形变化。
-4. 如果工具返回 error，只回复“查询失败：<原因>”，不要输出词典格式，也不要猜测。
+4. 如果工具返回 error，直接原样输出 error 字段的内容；它已经以“查询失败:”开头，不要重复添加前缀，也不要输出词典格式或猜测。
 5. 只输出最终词典内容，不要输出 Markdown 代码块或额外解释。"""
 
 TOOLS = [
@@ -138,8 +138,8 @@ def load_api_key() -> str:
     )
 
     candidates = [
-        os.environ.get("DEEPSEEK_API_KEY", ""),
         refs.get("DEEPSEEK_API_KEY", "") if isinstance(refs, dict) else "",
+        os.environ.get("DEEPSEEK_API_KEY", ""),
         os.environ.get("DEEPSEEK_ACCOUNT_API_KEY", ""),
         account_payload.get("token", "") if isinstance(account_payload, dict) else "",
     ]
@@ -314,6 +314,8 @@ def _extract_derivatives(data: dict) -> list[dict[str, str]]:
     simple = data.get("simple")
     if isinstance(simple, dict):
         sources.append(simple.get("wfs"))
+        for entry in _word_entries(simple):
+            sources.append(entry.get("wfs"))
     for entry in _word_entries(data.get("ec")):
         sources.append(entry.get("wfs"))
 
